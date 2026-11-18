@@ -7,6 +7,6 @@
   Keep this file private if you do not want other people to see your API key.
 */
 const DRIVE_LIBRARY_CONFIG = {
-  folderUrl: "PASTE_YOUR_GOOGLE_DRIVE_FOLDER_LINK_HERE",
-  apiKey: "PASTE_YOUR_GOOGLE_API_KEY_HERE"
+  folderUrl: "https://drive.google.com/drive/folders/1V1J1j23GW3X2bcz4oXog3FjDnUEDq9wZ?usp=drive_link",
+  apiKey: "AIzaSyBI8BYGemSgJ5B34lfEGjYdTIemIwXqy84"
 };
