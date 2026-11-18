@@ -1,6 +1,8 @@
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const $ = (id) => document.getElementById(id);
 const state = { videos: [], selectedId: null, scanning: false };
+const CACHE_PREFIX = "drive-video-library-cache-v1:";
+const MAX_PARALLEL_FOLDERS = 6;
 
 function extractFolderId(input) {
   const value = (input || "").trim();
@@ -15,22 +17,39 @@ function setStatus(message, kind = "busy") {
   $("statusDot").className = `status-dot ${kind}`;
 }
 
+function updateProgress(foldersChecked, foldersQueued, videosFound, pagesLoaded) {
+  setStatus(`Scanning… ${foldersChecked} folders checked; ${videosFound} videos found.`, "busy");
+  $("scanDetails").textContent =
+    `${foldersChecked} folders checked · ${foldersQueued} folders discovered · ${pagesLoaded} Drive pages loaded`;
+  $("videoCount").textContent = `${videosFound} video${videosFound === 1 ? "" : "s"}`;
+}
+
 async function driveList(apiKey, folderId, pageToken) {
   const params = new URLSearchParams({
     q: `'${folderId}' in parents and trashed = false`,
-    fields: "nextPageToken,files(id,name,mimeType,webViewLink,size,modifiedTime)",
+    fields: "nextPageToken,files(id,name,mimeType)",
     pageSize: "1000",
-    orderBy: "folder,name",
     key: apiKey
   });
   if (pageToken) params.set("pageToken", pageToken);
-  const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const message = data?.error?.message || `Google Drive returned HTTP ${response.status}.`;
-    throw new Error(message);
+
+  let attempt = 0;
+  while (true) {
+    const response = await fetch(`https://www.googleapis.com/drive/v3/files?${params}`);
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) return data;
+
+    const reason = data?.error?.errors?.[0]?.reason || "";
+    const retryable = response.status === 429 || response.status >= 500 ||
+      (response.status === 403 && /rateLimit|userRateLimit/i.test(reason));
+    if (retryable && attempt < 4) {
+      const delay = Math.min(8000, 500 * (2 ** attempt)) + Math.random() * 250;
+      await new Promise(resolve => setTimeout(resolve, delay));
+      attempt++;
+      continue;
+    }
+    throw new Error(data?.error?.message || `Google Drive returned HTTP ${response.status}.`);
   }
-  return data;
 }
 
 function isVideo(file) {
@@ -38,26 +57,60 @@ function isVideo(file) {
     /\.(mp4|m4v|mov|webm|ogv|ogg|avi|mkv|mpeg|mpg)$/i.test(file.name || "");
 }
 
-async function scanFolder(apiKey, folderId, path, foundVideos, visited) {
-  if (visited.has(folderId)) return;
-  visited.add(folderId);
-  setStatus(`Scanning folder ${visited.size}…`, "busy");
-  $("scanDetails").textContent = `${foundVideos.length} videos found so far. Checking folders and subfolders.`;
+function loadCachedVideos(rootId) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + rootId);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    return Array.isArray(cached) ? cached : null;
+  } catch { return null; }
+}
 
-  let pageToken;
-  do {
-    const data = await driveList(apiKey, folderId, pageToken);
-    for (const file of data.files || []) {
-      const filePath = path ? `${path}/${file.name}` : file.name;
-      if (file.mimeType === FOLDER_MIME) {
-        await scanFolder(apiKey, file.id, filePath, foundVideos, visited);
-      } else if (isVideo(file)) {
-        foundVideos.push({ ...file, path });
-        $("scanDetails").textContent = `${foundVideos.length} videos found so far. Checking folders and subfolders.`;
+function saveCachedVideos(rootId, videos) {
+  try { localStorage.setItem(CACHE_PREFIX + rootId, JSON.stringify(videos)); }
+  catch { /* Storage may be disabled or full; scanning still works. */ }
+}
+
+async function scanTree(apiKey, rootId) {
+  const queue = [{ id: rootId, path: "" }];
+  const visited = new Set([rootId]);
+  const videos = [];
+  let nextIndex = 0, foldersChecked = 0, pagesLoaded = 0, lastUiUpdate = 0;
+
+  async function worker() {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= queue.length) return;
+      const folder = queue[index];
+      let pageToken;
+      do {
+        const data = await driveList(apiKey, folder.id, pageToken);
+        pagesLoaded++;
+        for (const file of data.files || []) {
+          if (file.mimeType === FOLDER_MIME) {
+            if (!visited.has(file.id)) {
+              visited.add(file.id);
+              queue.push({ id: file.id, path: folder.path ? `${folder.path}/${file.name}` : file.name });
+            }
+          } else if (isVideo(file)) {
+            videos.push({ id: file.id, name: file.name || "Untitled video", path: folder.path });
+          }
+        }
+        pageToken = data.nextPageToken;
+      } while (pageToken);
+
+      foldersChecked++;
+      const now = Date.now();
+      if (now - lastUiUpdate > 150 || foldersChecked === queue.length) {
+        updateProgress(foldersChecked, queue.length, videos.length, pagesLoaded);
+        lastUiUpdate = now;
       }
     }
-    pageToken = data.nextPageToken;
-  } while (pageToken);
+  }
+
+  await Promise.all(Array.from({ length: MAX_PARALLEL_FOLDERS }, () => worker()));
+  videos.sort((a, b) => a.name.localeCompare(b.name));
+  return { videos, foldersChecked, pagesLoaded };
 }
 
 async function startScan() {
@@ -74,22 +127,32 @@ async function startScan() {
     if (!config.folderUrl || config.folderUrl.startsWith("PASTE_")) throw new Error("Add your Google Drive folder link to config.js.");
     const rootId = extractFolderId(config.folderUrl);
 
-    const videos = [];
-    const visited = new Set();
-    setStatus("Connected to Google Drive. Scanning…", "busy");
-    await scanFolder(apiKey, rootId, "", videos, visited);
-    videos.sort((a, b) => a.name.localeCompare(b.name));
-    state.videos = videos;
-    state.selectedId = null;
-    renderVideos();
+    const cached = loadCachedVideos(rootId);
+    if (cached) {
+      state.videos = cached;
+      state.selectedId = null;
+      renderVideos();
+      $("videoCount").textContent = `${cached.length} cached videos`;
+      $("scanDetails").textContent = "Showing the last saved video list while checking Drive for updates…";
+      setStatus(`Showing saved list (${cached.length} videos); refreshing…`, "busy");
+    } else {
+      state.videos = [];
+      renderVideos();
+      setStatus("Connecting to Google Drive…", "busy");
+    }
 
-    $("videoCount").textContent = `${videos.length} video${videos.length === 1 ? "" : "s"}`;
-    $("scanDetails").textContent = `Finished checking ${visited.size} folder${visited.size === 1 ? "" : "s"}. ${videos.length} video${videos.length === 1 ? "" : "s"} found.`;
-    if (videos.length) setStatus(`Working — scan complete (${videos.length} videos).`, "ok");
-    else setStatus("Scan finished, but no videos were found.", "ok");
+    const result = await scanTree(apiKey, rootId);
+    state.videos = result.videos;
+    state.selectedId = null;
+    saveCachedVideos(rootId, result.videos);
+    renderVideos();
+    $("videoCount").textContent = `${result.videos.length} videos`;
+    $("scanDetails").textContent =
+      `Finished: ${result.foldersChecked} folders · ${result.pagesLoaded} Drive pages · ${result.videos.length} videos.`;
+    setStatus(result.videos.length ? `Working — ${result.videos.length} videos ready.` : "Scan finished, but no videos were found.", "ok");
   } catch (error) {
     setStatus(`Not working — ${error.message}`, "error");
-    $("scanDetails").textContent = "Check that the Drive API is enabled and the folder is shared so this API key can access it.";
+    $("scanDetails").textContent = "The saved list (if available) is still shown. Check Drive API access, sharing permissions, and your API key.";
     $("videoCount").textContent = `${state.videos.length} videos`;
   } finally {
     state.scanning = false;
@@ -100,7 +163,7 @@ async function startScan() {
 function renderVideos() {
   const query = $("searchInput").value.trim().toLowerCase();
   const filtered = state.videos.filter(video =>
-    video.name.toLowerCase().includes(query) || (video.path || "").toLowerCase().includes(query)
+    (video.name || "").toLowerCase().includes(query) || (video.path || "").toLowerCase().includes(query)
   );
   const host = $("videoList");
   host.replaceChildren();

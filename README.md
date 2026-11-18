@@ -1,31 +1,6 @@
-# Drive Videos
 
-A minimal Google Drive video viewer. It automatically scans the configured folder and all nested folders when the page opens. The status line at the top shows whether the scan is working, how many folders/videos have been checked, and any errors.
+## Faster scanning
 
-## One-time setup
+This version checks up to six folders at the same time instead of waiting for each folder one-by-one. It requests only the Drive fields the viewer needs, avoids server-side sorting, retries temporary rate-limit/server errors, and saves the last successful video index in your browser. On later visits, that saved list appears immediately while a fresh scan checks for updates.
 
-1. Open `config.js` in a text editor.
-2. Paste your shared Google Drive folder URL into `folderUrl`.
-3. Paste your Google API key into `apiKey`.
-4. Save the file.
-5. Open the site using a local web server (see below).
-
-## Run locally
-
-From this folder, run:
-
-```bash
-python -m http.server 8000
-```
-
-Then open http://localhost:8000 in your browser. The page automatically scans on load. Use **Rescan** to scan again.
-
-## Google Drive requirements
-
-- Enable the Google Drive API in your Google Cloud project.
-- For the API-key-only setup, the root folder and nested folders/files must be accessible to anyone with the link. A standard API key cannot access a private Drive folder. Private Drive content requires an OAuth-based sign-in flow, which this simple static version does not include.
-- Restrict your API key to the Google Drive API and, once deployed, to your website's HTTP referrers. The key is visible in client-side files, so do not treat it as a secret.
-
-## Playback notes
-
-Videos play in Google's Drive preview player. Playback depends on the file's sharing permissions and Google's preview/transcoding support. Only one video plays at a time.
+The first scan still needs to ask Google Drive about every folder. Very large or deeply nested libraries may still take time because Google API response times and quota limits remain the bottlenecks. The saved index contains video metadata only, not video files, and is stored in this browser.
