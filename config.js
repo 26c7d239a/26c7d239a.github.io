@@ -8,5 +8,5 @@
 */
 const DRIVE_LIBRARY_CONFIG = {
   folderUrl: "https://drive.google.com/drive/folders/1V1J1j23GW3X2bcz4oXog3FjDnUEDq9wZ?usp=drive_link",
-  apiKey: "AIzaSyBI8BYGemSgJ5B34lfEGjYdTIemIwXqy84"
+  apiKey: "AIzaSyAyPnx00hKCmyzIGx0u9KRjrYogfvxlhc4"
 };
