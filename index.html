@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
+  <title>Drive Videos</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app">
+    <header class="header">
+      <h1>Drive Videos</h1>
+      <div class="status-wrap" aria-live="polite" role="status">
+        <span id="statusDot" class="status-dot busy"></span>
+        <span id="status">Starting…</span>
+        <button id="scanBtn" type="button">Rescan</button>
+      </div>
+    </header>
+
+    <section class="viewer" aria-label="Video player">
+      <div id="player" class="player">
+        <p>Select a video to play.</p>
+      </div>
+      <div id="nowPlaying" class="now-playing">No video selected</div>
+    </section>
+
+    <section class="library" aria-label="Video library">
+      <div class="library-tools">
+        <input id="searchInput" type="search" placeholder="Search videos…" aria-label="Search videos">
+        <span id="videoCount">0 videos</span>
+      </div>
+      <p id="scanDetails" class="scan-details"></p>
+      <div id="videoList" class="video-list"></div>
+      <p id="emptyState" class="empty-state" hidden>No videos found.</p>
+    </section>
+  </main>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
