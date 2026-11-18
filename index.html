@@ -1,5 +1,73 @@
-<html>
-  <body>
-    <p>test</p>
-  </body>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10131b">
+  <title>Drive Video Library</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">▶</span> Drive<span>Library</span></a>
+    <span class="top-note">YOUR VIDEOS, ORGANIZED</span>
+  </header>
+
+  <main class="shell">
+    <section class="intro">
+      <p class="eyebrow">PERSONAL VIDEO LIBRARY</p>
+      <h1>Everything in one <span>place.</span></h1>
+      <p class="subhead">Paste a shared Google Drive folder link. We'll look through its subfolders and build your video library.</p>
+    </section>
+
+    <section class="connect panel">
+      <label for="folderUrl">Google Drive folder link</label>
+      <div class="input-row">
+        <input id="folderUrl" type="url" placeholder="https://drive.google.com/drive/folders/…" autocomplete="url">
+        <button id="scanBtn">Find videos <span>→</span></button>
+      </div>
+      <div class="settings-row">
+        <label for="apiKey">Google API key</label>
+        <input id="apiKey" type="password" placeholder="Paste your Google Drive API key">
+      </div>
+      <p class="hint">The folder and its contents must be shared so the API key can read them. Your key stays in this browser tab and is not sent to any server by this site.</p>
+      <div id="status" class="status" role="status" aria-live="polite"></div>
+    </section>
+
+    <section id="library" class="library" hidden>
+      <div class="library-head">
+        <div>
+          <p class="eyebrow">YOUR COLLECTION</p>
+          <h2>Video library</h2>
+        </div>
+        <div class="counts"><strong id="videoCount">0</strong><span>videos found</span></div>
+      </div>
+
+      <div class="workspace">
+        <aside class="sidebar panel">
+          <label for="searchInput">Search videos</label>
+          <input id="searchInput" type="search" placeholder="Search by filename…">
+          <div class="folder-heading">FOLDERS</div>
+          <button class="folder-filter active" data-folder="">All videos <span id="allCount">0</span></button>
+          <div id="folderList" class="folder-list"></div>
+        </aside>
+
+        <section class="results">
+          <div class="player panel" id="playerPanel">
+            <div class="player-placeholder">
+              <div class="play-symbol">▶</div>
+              <h3>Choose a video to play</h3>
+              <p>Your selected video will appear here.</p>
+            </div>
+          </div>
+          <div class="now-playing" id="nowPlaying">NOTHING PLAYING</div>
+          <div id="videoGrid" class="video-grid"></div>
+          <p id="emptyState" class="empty-state" hidden>No videos match this search.</p>
+        </section>
+      </div>
+    </section>
+  </main>
+  <footer>DriveLibrary · Uses the Google Drive API · Videos remain hosted in your Drive</footer>
+  <script src="app.js"></script>
+</body>
 </html>
